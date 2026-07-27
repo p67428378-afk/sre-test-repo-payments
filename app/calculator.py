@@ -12,6 +12,10 @@ def calculate_late_fee(principal: float, overdue_days: int, installment_count: i
     Returns late_fee=0.0 when installment_count is zero (fully-paid loan edge case).
     """
     daily_rate = ANNUAL_LATE_RATE / 365
+    if principal is None or principal == 0:
+        return {"late_fee": 0.0, "daily_rate": daily_rate}
+    if principal < 0 or overdue_days < 0 or installment_count < 0:
+        raise ValueError("Inputs must be non-negative")
     if installment_count == 0:
         return {"late_fee": 0.0, "daily_rate": daily_rate}
     per_installment = principal / installment_count

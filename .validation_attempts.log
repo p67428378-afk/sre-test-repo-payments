@@ -1,0 +1,9 @@
+
+============================================================
+Attempt 1 at 2026-07-27T12:22:14.137975
+Status: FAILED
+Errors:
+  CHECK 2 FAILED — Unresolved imports:
+  tests/test_calculator.py:8 — import 'pytest' not in requirements
+
+FIX: Add each missing package to requirements.txt.

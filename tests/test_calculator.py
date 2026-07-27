@@ -35,3 +35,21 @@ def test_large_principal_rounding():
     result = calculate_late_fee(500000.0, 90, 24)
     assert isinstance(result["late_fee"], float)
     assert result["late_fee"] > 0
+
+
+def test_zero_or_none_principal_returns_zero():
+    result_zero = calculate_late_fee(0.0, 30, 12)
+    assert result_zero["late_fee"] == 0.0
+    
+    result_none = calculate_late_fee(None, 30, 12)
+    assert result_none["late_fee"] == 0.0
+
+
+def test_negative_inputs_raise_value_error():
+    with pytest.raises(ValueError):
+        calculate_late_fee(-100.0, 30, 12)
+    with pytest.raises(ValueError):
+        calculate_late_fee(1000.0, -5, 12)
+    with pytest.raises(ValueError):
+        calculate_late_fee(1000.0, 30, -1)
+
