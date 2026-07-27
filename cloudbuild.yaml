@@ -1,0 +1,58 @@
+steps:
+  # Create Artifact Registry repo if it doesn't already exist
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud artifacts repositories describe sre-apps \
+          --project=$PROJECT_ID \
+          --location=us-central1 \
+          --format="value(name)" 2>/dev/null \
+        || gcloud artifacts repositories create sre-apps \
+          --project=$PROJECT_ID \
+          --location=us-central1 \
+          --repository-format=docker
+
+  # Build the image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/sre-apps/sre-payments-test:$SHORT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/sre-apps/sre-payments-test:latest
+      - .
+
+  # Push both tags
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/sre-apps/sre-payments-test:$SHORT_SHA
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/sre-apps/sre-payments-test:latest
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - sre-payments-test
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/sre-apps/sre-payments-test:$SHORT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --memory=512Mi
+      - --cpu=1
+
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/sre-apps/sre-payments-test:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/sre-apps/sre-payments-test:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
