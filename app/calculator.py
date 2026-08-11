@@ -19,6 +19,26 @@ def calculate_late_fee(principal: float, overdue_days: int, installment_count: i
         raise ValueError("Inputs must be non-negative")
     if installment_count == 0:
         return {"late_fee": 0.0, "daily_rate": daily_rate}
-    per_installment = principal / installment_count
+    try:
+        per_installment = principal / installment_count
+    except ZeroDivisionError:
+        return {"late_fee": 0.0, "daily_rate": daily_rate}
     late_fee = per_installment * daily_rate * overdue_days
     return {"late_fee": round(late_fee, 2), "daily_rate": daily_rate}
+
+
+def calculate_late_fee_with_retry(principal: float, overdue_days: int, installment_count: int, max_retries: int = 3) -> dict:
+    """Call calculate_late_fee with retry logic for transient errors."""
+    import time
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    for attempt in range(max_retries):
+        try:
+            return calculate_late_fee(principal, overdue_days, installment_count)
+        except (ConnectionError, TimeoutError, RuntimeError) as e:
+            if attempt == max_retries - 1:
+                raise e
+            logger.warning(f"Transient error encountered: {e}. Retrying calculate_late_fee (attempt {attempt + 1}/{max_retries})...")
+            time.sleep(0.1 * (2 ** attempt))
+    return calculate_late_fee(principal, overdue_days, installment_count)

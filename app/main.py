@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
-from app.calculator import calculate_late_fee
+from app.calculator import calculate_late_fee, calculate_late_fee_with_retry
 from app.models import LateFeeRequest, LateFeeResponse, PaymentRequest, PaymentResponse
 
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +31,7 @@ async def _error_loop() -> None:
     while True:
         await asyncio.sleep(60)
         try:
-            calculate_late_fee(1000.0, 30, 0)
+            calculate_late_fee_with_retry(1000.0, 30, 0)
         except Exception:
             logger.exception(
                 "Late fee calculation failed — ZeroDivisionError in calculate_late_fee "
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
     if os.environ.get("APP_ENV") == "buggy":
         logger.warning("APP_ENV=buggy — triggering error loop for Cloud Logging population")
         try:
-            calculate_late_fee(1000.0, 30, 0)
+            calculate_late_fee_with_retry(1000.0, 30, 0)
         except Exception:
             logger.exception(
                 "Late fee calculation failed — ZeroDivisionError in calculate_late_fee "
@@ -85,7 +85,7 @@ def readyz():
 @app.post("/calculate-late-fee", response_model=LateFeeResponse)
 def calculate_late_fee_endpoint(req: LateFeeRequest):
     try:
-        result = calculate_late_fee(req.principal, req.overdue_days, req.installment_count)
+        result = calculate_late_fee_with_retry(req.principal, req.overdue_days, req.installment_count)
         return LateFeeResponse(**result)
     except ZeroDivisionError:
         logger.exception(

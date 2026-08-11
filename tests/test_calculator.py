@@ -54,4 +54,11 @@ def test_negative_inputs_raise_value_error():
         calculate_late_fee(1000.0, 30, -1)
 
 
+def test_calculate_late_fee_with_retry():
+    from app.calculator import calculate_late_fee_with_retry
+    result = calculate_late_fee_with_retry(10000.0, 30, 12)
+    assert result["late_fee"] > 0
+    assert result["daily_rate"] == pytest.approx(DAILY_RATE, rel=1e-6)
+
+
 # Verified and finalized for INC0010190
