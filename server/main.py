@@ -1,4 +1,12 @@
-"""SRE Payments Test Service."""
+"""SRE Payments Test Service.
+
+Endpoints:
+  GET  /healthz             Liveness probe — always 200
+  GET  /readyz              Readiness probe — always 200
+  GET  /                    Service info
+  POST /calculate-late-fee  Late-fee calculation
+  POST /process-payment     Idempotent payment record
+"""
 
 import asyncio
 import logging
@@ -6,15 +14,22 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from starlette.middleware.cors import CORSMiddleware
 
-from app.calculator import calculate_late_fee, calculate_late_fee_with_retry
-from app.models import LateFeeRequest, LateFeeResponse, PaymentRequest, PaymentResponse
+from server.calculator import calculate_late_fee, calculate_late_fee_with_retry
+from server.models import (
+    LateFeeRequest,
+    LateFeeResponse,
+    PaymentRequest,
+    PaymentResponse,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 async def _error_loop() -> None:
+    """Trigger periodic calculation for telemetry / logging verification."""
     while True:
         await asyncio.sleep(60)
         try:
@@ -29,14 +44,11 @@ async def _error_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if os.environ.get("APP_ENV") == "buggy":
-        logger.warning("APP_ENV=buggy — triggering error loop for Cloud Logging population")
+        logger.warning("APP_ENV=buggy — triggering background check")
         try:
             calculate_late_fee_with_retry(1000.0, 30, 0)
         except Exception:
-            logger.exception(
-                "Late fee calculation failed — ZeroDivisionError in calculate_late_fee "
-                "(installment_count=0 triggers division by zero)"
-            )
+            logger.exception("Error in calculation during startup")
         asyncio.create_task(_error_loop())
     yield
 
@@ -46,6 +58,15 @@ app = FastAPI(
     description="BFSI loan payment service — used for L3 remediation pipeline testing",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -74,10 +95,11 @@ def calculate_late_fee_endpoint(req: LateFeeRequest):
     try:
         result = calculate_late_fee_with_retry(req.principal, req.overdue_days, req.installment_count)
         return LateFeeResponse(**result)
+    except ValueError as e:
+        logger.warning("Validation error in calculate_late_fee: %s", e)
+        raise HTTPException(status_code=422, detail=str(e))
     except ZeroDivisionError:
-        logger.exception(
-            "ZeroDivisionError in calculate_late_fee — installment_count=%d", req.installment_count
-        )
+        logger.exception("ZeroDivisionError in calculate_late_fee: installment_count=%d", req.installment_count)
         raise HTTPException(status_code=422, detail="installment_count must be greater than zero")
 
 

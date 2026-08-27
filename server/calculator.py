@@ -1,15 +1,22 @@
 """Loan late-fee calculator.
 
-Clean version (main branch) — includes guard for installment_count=0.
+Includes guard clauses for principal=0 and installment_count=0 to prevent ZeroDivisionError.
 """
+
+import logging
+import time
+from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 ANNUAL_LATE_RATE = 0.18
 
 
-def calculate_late_fee(principal: float, overdue_days: int, installment_count: int) -> dict:
+def calculate_late_fee(principal: float, overdue_days: int, installment_count: int) -> Dict[str, Any]:
     """Calculate penalty for an overdue loan installment.
 
-    Returns late_fee=0.0 when installment_count is zero (fully-paid loan edge case).
+    Returns late_fee=0.0 when installment_count is zero (fully-paid loan edge case)
+    or when principal is zero or None.
     """
     daily_rate = ANNUAL_LATE_RATE / 365.0
     if principal is None or principal == 0:
@@ -28,12 +35,8 @@ def calculate_late_fee(principal: float, overdue_days: int, installment_count: i
 
 def calculate_late_fee_with_retry(
     principal: float, overdue_days: int, installment_count: int, max_retries: int = 3
-) -> dict:
+) -> Dict[str, Any]:
     """Call calculate_late_fee with retry logic for transient errors."""
-    import time
-    import logging
-    logger = logging.getLogger(__name__)
-
     for attempt in range(max_retries):
         try:
             return calculate_late_fee(principal, overdue_days, installment_count)
@@ -41,7 +44,10 @@ def calculate_late_fee_with_retry(
             if attempt == max_retries - 1:
                 raise e
             logger.warning(
-                f"Transient error encountered: {e}. Retrying calculate_late_fee (attempt {attempt + 1}/{max_retries})..."
+                "Transient error encountered: %s. Retrying calculate_late_fee (attempt %d/%d)...",
+                e,
+                attempt + 1,
+                max_retries,
             )
-            time.sleep(0.1 * (2 ** attempt))
+            time.sleep(0.1 * (2**attempt))
     return calculate_late_fee(principal, overdue_days, installment_count)
