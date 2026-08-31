@@ -9,7 +9,7 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-ANNUAL_LATE_RATE = 0.18
+ANNUAL_LATE_RATE = 0.18  # 18% annual late rate
 
 
 def calculate_late_fee(
