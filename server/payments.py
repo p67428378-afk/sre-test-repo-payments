@@ -6,14 +6,9 @@ Includes robust exception handling and retry logic to prevent exceptions from es
 import asyncio
 import logging
 import random
-from typing import Any, Dict
 from pydantic import BaseModel
 from fastapi import HTTPException
 
-from server.calculator import (
-    calculate_late_fee,
-    calculate_late_fee_with_retry,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -45,34 +40,99 @@ async def charge(request: ChargeRequest) -> ChargeResponse:
             await _apply_simulated_latency()
             transaction_id = f"tx_{random.randint(100000, 999999)}"
             logger.info("Successfully charged %s %s", request.amount, request.currency)
-            return ChargeResponse(transaction_id=transaction_id, status="success", amount=request.amount)
+            return ChargeResponse(
+                transaction_id=transaction_id, status="success", amount=request.amount
+            )
         except (ConnectionError, TimeoutError) as e:
             if attempt == max_retries - 1:
-                logger.error("Failed to charge payment after %d attempts: %s", max_retries, e)
-                raise HTTPException(status_code=503, detail="Payment gateway temporarily unavailable")
-            logger.warning("Transient error in charge: %s. Retrying (attempt %d/%d)...", e, attempt + 1, max_retries)
-            await asyncio.sleep(0.1 * (2 ** attempt))
+                logger.error(
+                    "Failed to charge payment after %d attempts: %s", max_retries, e
+                )
+                raise HTTPException(
+                    status_code=503, detail="Payment gateway temporarily unavailable"
+                )
+            logger.warning(
+                "Transient error in charge: %s. Retrying (attempt %d/%d)...",
+                e,
+                attempt + 1,
+                max_retries,
+            )
+            await asyncio.sleep(0.1 * (2**attempt))
         except Exception as e:
             logger.exception("Unexpected error in charge: %s", e)
-            raise HTTPException(status_code=500, detail="Internal payment processing error")
+            raise HTTPException(
+                status_code=500, detail="Internal payment processing error"
+            )
 
 
 async def get_payment(transaction_id: str) -> dict:
-    """Retrieve payment details safely."""
-    try:
-        await _apply_simulated_latency()
-        return {"transaction_id": transaction_id, "status": "success"}
-    except Exception as e:
-        logger.exception("Error retrieving payment %s: %s", transaction_id, e)
-        raise HTTPException(status_code=404, detail="Payment not found or retrieval failed")
+    """Retrieve payment details safely with retry logic for transient errors."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            await _apply_simulated_latency()
+            return {"transaction_id": transaction_id, "status": "success"}
+        except (ConnectionError, TimeoutError) as e:
+            if attempt == max_retries - 1:
+                logger.error(
+                    "Failed to retrieve payment %s after %d attempts: %s",
+                    transaction_id,
+                    max_retries,
+                    e,
+                )
+                raise HTTPException(
+                    status_code=503, detail="Payment gateway temporarily unavailable"
+                )
+            logger.warning(
+                "Transient error in get_payment: %s. Retrying (attempt %d/%d)...",
+                e,
+                attempt + 1,
+                max_retries,
+            )
+            await asyncio.sleep(0.1 * (2**attempt))
+        except Exception as e:
+            logger.exception(
+                "Unexpected error retrieving payment %s: %s", transaction_id, e
+            )
+            raise HTTPException(
+                status_code=404, detail="Payment not found or retrieval failed"
+            )
 
 
 async def refund(transaction_id: str, amount: float) -> dict:
-    """Refund a payment safely."""
-    try:
-        await _apply_simulated_latency()
-        logger.info("Successfully refunded %s for transaction %s", amount, transaction_id)
-        return {"transaction_id": transaction_id, "status": "refunded", "amount": amount}
-    except Exception as e:
-        logger.exception("Error refunding transaction %s: %s", transaction_id, e)
-        raise HTTPException(status_code=500, detail="Refund processing failed")
+    """Refund a payment safely with retry logic for transient errors."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            await _apply_simulated_latency()
+            logger.info(
+                "Successfully refunded %s for transaction %s", amount, transaction_id
+            )
+            return {
+                "transaction_id": transaction_id,
+                "status": "refunded",
+                "amount": amount,
+            }
+        except (ConnectionError, TimeoutError) as e:
+            if attempt == max_retries - 1:
+                logger.error(
+                    "Failed to refund transaction %s after %d attempts: %s",
+                    transaction_id,
+                    max_retries,
+                    e,
+                )
+                raise HTTPException(
+                    status_code=503, detail="Payment gateway temporarily unavailable"
+                )
+            logger.warning(
+                "Transient error in refund: %s. Retrying (attempt %d/%d)...",
+                e,
+                attempt + 1,
+                max_retries,
+            )
+            await asyncio.sleep(0.1 * (2**attempt))
+        except Exception as e:
+            logger.exception(
+                "Unexpected error refunding transaction %s: %s", transaction_id, e
+            )
+            raise HTTPException(status_code=500, detail="Refund processing failed")

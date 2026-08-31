@@ -70,11 +70,17 @@ def test_api_endpoints():
     assert client.get("/readyz").status_code == 200
 
     # calculate-late-fee with installment_count=0
-    res = client.post("/calculate-late-fee", json={"principal": 10000.0, "overdue_days": 30, "installment_count": 0})
+    res = client.post(
+        "/calculate-late-fee",
+        json={"principal": 10000.0, "overdue_days": 30, "installment_count": 0},
+    )
     assert res.status_code == 200
     assert res.json()["late_fee"] == 0.0
 
     # process-payment
-    res = client.post("/process-payment", json={"payment_id": "pay_123", "amount": 150.0, "borrower_id": "b_1"})
+    res = client.post(
+        "/process-payment",
+        json={"payment_id": "pay_123", "amount": 150.0, "borrower_id": "b_1"},
+    )
     assert res.status_code == 200
     assert res.json()["status"] == "accepted"

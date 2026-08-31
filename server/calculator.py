@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 ANNUAL_LATE_RATE = 0.18
 
 
-def calculate_late_fee(principal: float, overdue_days: int, installment_count: int) -> Dict[str, Any]:
+def calculate_late_fee(
+    principal: float, overdue_days: int, installment_count: int
+) -> Dict[str, Any]:
     """Calculate penalty for an overdue loan installment.
 
     Returns late_fee=0.0 when installment_count is zero (fully-paid loan edge case)

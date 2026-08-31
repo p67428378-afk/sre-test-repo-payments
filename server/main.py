@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from starlette.middleware.cors import CORSMiddleware
 
-from server.calculator import calculate_late_fee, calculate_late_fee_with_retry
+from server.calculator import calculate_late_fee_with_retry
 from server.models import (
     LateFeeRequest,
     LateFeeResponse,
@@ -60,7 +60,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -92,20 +94,36 @@ def readyz():
 
 @app.post("/calculate-late-fee", response_model=LateFeeResponse)
 def calculate_late_fee_endpoint(req: LateFeeRequest):
+    # Add validation to ensure installment_count is not zero before calling calculate_late_fee
+    if req.installment_count == 0:
+        logger.info(
+            "installment_count is zero, returning 0.0 late fee directly without calling calculate_late_fee"
+        )
+        return LateFeeResponse(late_fee=0.0, daily_rate=0.18 / 365.0)
+
     try:
-        result = calculate_late_fee_with_retry(req.principal, req.overdue_days, req.installment_count)
+        result = calculate_late_fee_with_retry(
+            req.principal, req.overdue_days, req.installment_count
+        )
         return LateFeeResponse(**result)
     except ValueError as e:
         logger.warning("Validation error in calculate_late_fee: %s", e)
         raise HTTPException(status_code=422, detail=str(e))
     except ZeroDivisionError:
-        logger.exception("ZeroDivisionError in calculate_late_fee: installment_count=%d", req.installment_count)
-        raise HTTPException(status_code=422, detail="installment_count must be greater than zero")
+        logger.exception(
+            "ZeroDivisionError in calculate_late_fee: installment_count=%d",
+            req.installment_count,
+        )
+        raise HTTPException(
+            status_code=422, detail="installment_count must be greater than zero"
+        )
 
 
 @app.post("/process-payment", response_model=PaymentResponse)
 def process_payment(req: PaymentRequest):
-    logger.info("Payment accepted: payment_id=%s amount=%.2f", req.payment_id, req.amount)
+    logger.info(
+        "Payment accepted: payment_id=%s amount=%.2f", req.payment_id, req.amount
+    )
     return PaymentResponse(
         payment_id=req.payment_id,
         status="accepted",
