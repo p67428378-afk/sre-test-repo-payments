@@ -9,6 +9,7 @@ Endpoints:
 """
 
 import asyncio
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -24,7 +25,36 @@ from server.models import (
     PaymentResponse,
 )
 
-logging.basicConfig(level=logging.INFO)
+
+class JSONFormatter(logging.Formatter):
+    """Custom JSON formatter for structured logging in GCP Cloud Logging."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_record = {
+            "severity": record.levelname,
+            "message": record.getMessage(),
+            "logger": record.name,
+            "timestamp": self.formatTime(record, self.datefmt),
+        }
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
+
+
+# Configure logging
+log_handler = logging.StreamHandler()
+if os.getenv("LOG_FORMAT", "json").lower() == "json":
+    log_handler.setFormatter(JSONFormatter())
+else:
+    log_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.handlers = []
+root_logger.addHandler(log_handler)
+
 logger = logging.getLogger(__name__)
 
 
