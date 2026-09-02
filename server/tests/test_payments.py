@@ -1,7 +1,13 @@
 import pytest
 from unittest.mock import patch
 from fastapi import HTTPException
-from server.payments import charge, get_payment, refund, ChargeRequest
+from server.payments import (
+    charge,
+    get_payment,
+    refund,
+    ChargeRequest,
+    SimulatedConnection,
+)
 
 
 @pytest.mark.asyncio
@@ -62,3 +68,10 @@ async def test_refund_success():
         assert res["transaction_id"] == "tx_123"
         assert res["status"] == "refunded"
         assert res["amount"] == 50.0
+
+
+def test_simulated_connection_context_manager():
+    """Verify that SimulatedConnection works as a context manager and closes properly."""
+    with SimulatedConnection() as conn:
+        assert not conn.is_closed
+    assert conn.is_closed
