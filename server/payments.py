@@ -1,4 +1,4 @@
-"""Payments module containing charge, get_payment, refund, and calculate_late_fee functions.
+"""Payments module containing charge, get_payment, and refund functions.
 
 Includes robust exception handling and retry logic to prevent exceptions from escaping to callers.
 """
@@ -6,9 +6,8 @@ Includes robust exception handling and retry logic to prevent exceptions from es
 import asyncio
 import logging
 import random
-from pydantic import BaseModel
 from fastapi import HTTPException
-
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
