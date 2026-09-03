@@ -98,9 +98,18 @@ def readyz():
 
 @app.post("/calculate-late-fee", response_model=LateFeeResponse)
 def calculate_late_fee_endpoint(req: LateFeeRequest):
+    if req.installment_count == 0:
+        logger.info(
+            "installment_count is zero, returning 0.0 late fee directly without calling calculate_late_fee"
+        )
+        return LateFeeResponse(late_fee=0.0, daily_rate=0.18 / 365.0)
+
     try:
         result = calculate_late_fee_with_retry(req.principal, req.overdue_days, req.installment_count)
         return LateFeeResponse(**result)
+    except ValueError as e:
+        logger.warning("Validation error in calculate_late_fee: %s", e)
+        raise HTTPException(status_code=422, detail=str(e))
     except ZeroDivisionError:
         logger.exception(
             "ZeroDivisionError in calculate_late_fee — installment_count=%d", req.installment_count
