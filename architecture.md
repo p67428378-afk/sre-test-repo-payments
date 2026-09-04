@@ -22,6 +22,7 @@ graph TD
 - server/calculator.py
 - server/main.py
 - server/models.py
+- server/observability.py
 - server/payments.py
 - server/tests/__init__.py
 - server/tests/test_calculator.py

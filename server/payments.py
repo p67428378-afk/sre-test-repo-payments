@@ -1,4 +1,4 @@
-"""Payments module containing charge, get_payment, and refund functions.
+"""Payments module containing charge, get_payment, refund, and late-fee calculation functions.
 
 Includes robust exception handling and retry logic to prevent exceptions from escaping to callers.
 """
@@ -6,8 +6,14 @@ Includes robust exception handling and retry logic to prevent exceptions from es
 import asyncio
 import logging
 import random
+from typing import Any, Dict
 from fastapi import HTTPException
 from pydantic import BaseModel
+
+from server.calculator import (
+    calculate_late_fee as _calc_late_fee,
+    calculate_late_fee_with_retry as _calc_late_fee_with_retry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +53,26 @@ async def _apply_simulated_latency():
     await asyncio.sleep(random.uniform(0.1, 0.5))
     if random.random() < 0.1:
         raise ConnectionError("Transient network failure in payment gateway")
+
+
+def calculate_late_fee(
+    principal: float, overdue_days: int, installment_count: int
+) -> Dict[str, Any]:
+    """Calculate late fee penalty for payments, preventing ZeroDivisionError when installment_count=0."""
+    try:
+        return _calc_late_fee(principal, overdue_days, installment_count)
+    except Exception as e:
+        logger.exception("Error calculating late fee in payments: %s", e)
+        raise
+
+
+def calculate_late_fee_with_retry(
+    principal: float, overdue_days: int, installment_count: int, max_retries: int = 3
+) -> Dict[str, Any]:
+    """Calculate late fee penalty with retry logic for transient errors."""
+    return _calc_late_fee_with_retry(
+        principal, overdue_days, installment_count, max_retries=max_retries
+    )
 
 
 async def charge(request: ChargeRequest) -> ChargeResponse:
